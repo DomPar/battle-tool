@@ -6,28 +6,38 @@ export default function InicioScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Battle Tool</Text>
+            <Text style={styles.appTitle}>⚔️ Battle Tool</Text>
 
-            <Pressable
-                style={styles.button}
-                onPress={() => router.push("/battles")}
-            >
-                <Text style={styles.buttonText}>Batallas</Text>
-            </Pressable>
+            <View style={styles.buttonsWrapper}>
 
-            <Pressable
-                style={styles.button}
-                onPress={() => router.push("/characters")}   // ← OJO: SOLO "/characters"
-            >
-                <Text style={styles.buttonText}>Personajes</Text>
-            </Pressable>
+                {/* Botón Batallas */}
+                <Pressable
+                    style={styles.button}
+                    onPress={() => router.push("/battles")}
+                >
+                    <Text style={styles.icon}>⚔️</Text>
+                    <Text style={styles.buttonLabel}>Batallas</Text>
+                </Pressable>
 
-            <Pressable
-                style={styles.button}
-                onPress={() => router.push("/bestiary")}     // ← y aquí solo "/bestiary"
-            >
-                <Text style={styles.buttonText}>Criaturas</Text>
-            </Pressable>
+                {/* Botón Personajes */}
+                <Pressable
+                    style={styles.button}
+                    onPress={() => router.push("/characters")}
+                >
+                    <Text style={styles.icon}>🧙‍♂️</Text>
+                    <Text style={styles.buttonLabel}>Personajes</Text>
+                </Pressable>
+
+                {/* Botón Criaturas */}
+                <Pressable
+                    style={styles.button}
+                    onPress={() => router.push("/bestiary")}
+                >
+                    <Text style={styles.icon}>🐉</Text>
+                    <Text style={styles.buttonLabel}>Criaturas</Text>
+                </Pressable>
+
+            </View>
         </View>
     );
 }
@@ -35,29 +45,52 @@ export default function InicioScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#0f172a",
+        backgroundColor: "#020617", // azul noche
         alignItems: "center",
         justifyContent: "center",
-        gap: 20,
+        paddingHorizontal: 24,
     },
-    title: {
-        fontSize: 32,
+
+    appTitle: {
+        fontSize: 36,
+        color: "white",
         fontWeight: "bold",
-        color: "#ffffff",
-        marginBottom: 40,
+        marginBottom: 50,
+        letterSpacing: 1,
+        textAlign: "center",
     },
+
+    buttonsWrapper: {
+        width: "100%",
+        gap: 22,
+    },
+
     button: {
-        width: 220,
-        paddingVertical: 16,
-        borderRadius: 999,
+        backgroundColor: "#0f172a",
         borderWidth: 2,
-        borderColor: "#ffffff",
+        borderColor: "#334155",
+        borderRadius: 20,
+        paddingVertical: 18,
+        paddingHorizontal: 16,
         alignItems: "center",
         justifyContent: "center",
+        flexDirection: "column",
+        shadowColor: "#000",
+        shadowOpacity: 0.3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowRadius: 6,
+        elevation: 6,
     },
-    buttonText: {
-        color: "#ffffff",
+
+    icon: {
+        fontSize: 38,
+        marginBottom: 6,
+    },
+
+    buttonLabel: {
+        color: "white",
         fontSize: 18,
         fontWeight: "600",
+        letterSpacing: 0.5,
     },
 });
