@@ -3,8 +3,7 @@ import { Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
-    const insets = useSafeAreaInsets(); // márgenes seguros (arriba/abajo)
-
+    const insets = useSafeAreaInsets(); 
     return (
         <Tabs
             screenOptions={{
@@ -15,8 +14,7 @@ export default function TabLayout() {
                     backgroundColor: "#020617",
                     borderTopColor: "#1f2937",
                     borderTopWidth: 1,
-                    // dejamos sitio por encima de los botones del sistema
-                    height: 60 + insets.bottom,
+                    height: 60 + insets.bottom,  // dejamos sitio por encima de los botones del sistema, para no tapar.
                     paddingTop: 6,
                     paddingBottom: 8 + insets.bottom,
                 },
@@ -28,8 +26,6 @@ export default function TabLayout() {
                 headerTitleStyle: {
                     fontWeight: "600",
                 },
-
-                // opcional: que se oculte al abrir teclado
                 tabBarHideOnKeyboard: true,
             }}
         >

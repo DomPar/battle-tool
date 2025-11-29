@@ -5,6 +5,7 @@ import {
     Alert,
     Animated,
     Easing,
+    Keyboard,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -31,6 +32,9 @@ export default function BattleDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
+    // altura del teclado para mover todo cuando se ve el teclado para el input
+    const [keyboardOffset, setKeyboardOffset] = useState(0);
+
     // inputs por combatiente (cantidad a sumar/restar)
     const [amountInputs, setAmountInputs] = useState({});
 
@@ -39,15 +43,15 @@ export default function BattleDetailScreen() {
     const [selectedId, setSelectedId] = useState("");
     const [formHpMax, setFormHpMax] = useState("");
     const [formInit, setFormInit] = useState("");
+    const [formNameOverride, setFormNameOverride] = useState(""); 
 
     // panel deslizante
     const [isPanelOpen, setIsPanelOpen] = useState(false);
-    const panelAnim = useRef(new Animated.Value(0)).current; // 0 cerrado, 1 abierto
+    const panelAnim = useRef(new Animated.Value(0)).current; 
 
-    // 260px hacia abajo cuando está cerrado para que no se vea nada
     const translateY = panelAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: [260, 0],
+        outputRange: [260, 0], 
     });
 
     const togglePanel = () => {
@@ -61,7 +65,23 @@ export default function BattleDetailScreen() {
         }).start();
     };
 
-    // ------------------ CARGA INICIAL ------------------
+    // Ajustar offset cuando se muestra/oculta el teclado.
+
+    useEffect(() => {
+        const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
+            setKeyboardOffset(e.endCoordinates.height);
+        });
+        const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+            setKeyboardOffset(0);
+        });
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, []);
+
+    // Cargar datos de la batalla
 
     useEffect(() => {
         loadData();
@@ -113,7 +133,7 @@ export default function BattleDetailScreen() {
         }
     };
 
-    // ------------------ HP / TEMP ------------------
+    // Manejar cambios en los inputs y aplicar cambios de HP/Temp HP
 
     const handleAmountChange = (id, value) => {
         setAmountInputs((prev) => ({
@@ -137,11 +157,11 @@ export default function BattleDetailScreen() {
             let tempHp = c.tempHp ?? 0;
 
             if (mode === "temp") {
-                // sumar puntos de golpe temporales (no tocan la vida real)
+                // sumar puntos de golpe temporales
                 tempHp += amount;
             } else if (mode === "damage") {
-                // daño primero contra temporales
-                let remaining = amount;
+                
+                let remaining = amount; // daño primero contra temporales
 
                 if (tempHp > 0) {
                     const used = Math.min(tempHp, remaining);
@@ -170,8 +190,7 @@ export default function BattleDetailScreen() {
         saveCombatants(updated);
     };
 
-    // ------------------ AÑADIR COMBATIENTE ------------------
-
+    // Añadir un nuevo combatiente a la batalla
     const handleAddCombatant = async () => {
         const list = fromType === "character" ? characters : creatures;
         const srcIdNum = parseInt(selectedId, 10);
@@ -193,17 +212,23 @@ export default function BattleDetailScreen() {
 
         const internalId = Date.now() + Math.random();
 
+        // Nombre que se verá en la batalla:
+        const displayName =
+            fromType === "creature" && formNameOverride.trim().length > 0
+                ? formNameOverride.trim()
+                : src.name;
+
         const newCombatant = {
-            internalId, // id solo dentro de la batalla
+            internalId, 
             sourceId: src.id,
-            sourceType: fromType, // "character" o "creature"
-            name: src.name,
+            sourceType: fromType, 
+            name: displayName,
             hpMax,
             hpCurrent: hpMax,
             tempHp: 0,
             ac: src.ac ?? 0,
             initiative,
-            notes: src.notes ?? null, // se guarda pero no se muestra
+            notes: src.notes ?? null, 
             isDead: false,
         };
 
@@ -214,12 +239,12 @@ export default function BattleDetailScreen() {
         setSelectedId("");
         setFormHpMax("");
         setFormInit("");
+        setFormNameOverride("");
         setAmountInputs((prev) => ({ ...prev, [internalId]: "" }));
 
         await saveCombatants(updated);
     };
 
-    // ------------------ RENDER ------------------
 
     if (loading || !battle) {
         return (
@@ -231,14 +256,17 @@ export default function BattleDetailScreen() {
     }
 
     return (
-        <View style={styles.container}>
-            {/* CONTENIDO SCROLL */}
+        <View style={[styles.container, { paddingBottom: keyboardOffset }]}>
+            {/* Lista de los combatientes, pnatalla principal */}
             <ScrollView
                 style={styles.scroll}
-                contentContainerStyle={{ paddingBottom: 190 }} // espacio para footer
+                contentContainerStyle={{ paddingBottom: 190 }}
             >
                 <View style={styles.header}>
                     <Text style={styles.battleName}>{battle.name}</Text>
+                    {battle.notes ? (
+                        <Text style={styles.battleNotes}>{battle.notes}</Text>
+                    ) : null}
                 </View>
 
                 {combatants.length === 0 ? (
@@ -246,77 +274,82 @@ export default function BattleDetailScreen() {
                         Aún no hay combatientes en esta batalla.
                     </Text>
                 ) : (
-                    combatants.map((c) => (
-                        <View
-                            key={c.internalId}
-                            style={[
-                                styles.combatRow,
-                                c.isDead && { opacity: 0.4, backgroundColor: "#111827" },
-                            ]}
-                        >
-                            <View style={styles.leftBlock}>
-                                <View style={styles.initiativeBadge}>
-                                    <Text style={styles.initiativeText}>{c.initiative}</Text>
-                                </View>
-                                <View style={styles.mainText}>
-                                    <Text style={styles.combatName}>{c.name}</Text>
-                                    <Text style={styles.combatStats}>
-                                        <Text style={styles.acText}>AC {c.ac}</Text>
-                                        <Text style={styles.grayText}> · </Text>
-                                        <Text style={styles.hpText}>
-                                            {c.hpCurrent} / {c.hpMax} HP
-                                        </Text>
-                                        {c.tempHp > 0 && (
-                                            <Text style={styles.tempHpText}>
-                                                {" "}
-                                                (+{c.tempHp})
+                    combatants.map((c) => {
+                        const isCharacter = c.sourceType === "character";
+                        return (
+                            <View
+                                key={c.internalId}
+                                style={[
+                                    styles.combatRow,
+                                    c.isDead && { opacity: 0.4, backgroundColor: "#111827" },
+                                ]}
+                            >
+                                <View style={styles.leftBlock}>
+                                    <View style={styles.initiativeBadge}>
+                                        <Text style={styles.initiativeText}>{c.initiative}</Text>
+                                    </View>
+                                    <View style={styles.mainText}>
+                                        <Text style={styles.combatName}>{c.name}</Text>
+                                        <Text style={styles.combatStats}>
+                                            <Text style={styles.acText}>AC {c.ac}</Text>
+                                            <Text style={styles.grayText}> · </Text>
+                                            <Text style={styles.hpText}>
+                                                {c.hpCurrent} / {c.hpMax} HP
                                             </Text>
-                                        )}
-                                    </Text>
+                                            {c.tempHp > 0 && (
+                                                <Text style={styles.tempHpText}>
+                                                    {" "}
+                                                    (+{c.tempHp})
+                                                </Text>
+                                            )}
+                                        </Text>
+                                    </View>
                                 </View>
+
+                                {/* Input para sumar y restar los puntos de salud */}
+                                {!isCharacter && (
+                                    <View style={styles.rightBlock}>
+                                        <Pressable
+                                            style={[styles.hpButton, styles.damageButton]}
+                                            onPress={() => applyChange(c.internalId, "damage")}
+                                        >
+                                            <Text style={styles.hpButtonText}>-</Text>
+                                        </Pressable>
+
+                                        <TextInput
+                                            style={styles.amountInput}
+                                            value={amountInputs[c.internalId] || ""}
+                                            onChangeText={(text) =>
+                                                handleAmountChange(c.internalId, text)
+                                            }
+                                            keyboardType="numeric"
+                                            placeholder="X"
+                                            placeholderTextColor="#6b7280"
+                                        />
+
+                                        <Pressable
+                                            style={[styles.hpButton, styles.healButton]}
+                                            onPress={() => applyChange(c.internalId, "heal")}
+                                        >
+                                            <Text style={styles.hpButtonText}>+</Text>
+                                        </Pressable>
+
+                                        <Pressable
+                                            style={[styles.hpButton, styles.tempButton]}
+                                            onPress={() => applyChange(c.internalId, "temp")}
+                                        >
+                                            <Text style={styles.hpButtonText}>🛡</Text>
+                                        </Pressable>
+                                    </View>
+                                )}
                             </View>
-
-                            <View style={styles.rightBlock}>
-                                <Pressable
-                                    style={[styles.hpButton, styles.damageButton]}
-                                    onPress={() => applyChange(c.internalId, "damage")}
-                                >
-                                    <Text style={styles.hpButtonText}>-</Text>
-                                </Pressable>
-
-                                <TextInput
-                                    style={styles.amountInput}
-                                    value={amountInputs[c.internalId] || ""}
-                                    onChangeText={(text) =>
-                                        handleAmountChange(c.internalId, text)
-                                    }
-                                    keyboardType="numeric"
-                                    placeholder="X"
-                                    placeholderTextColor="#6b7280"
-                                />
-
-                                <Pressable
-                                    style={[styles.hpButton, styles.healButton]}
-                                    onPress={() => applyChange(c.internalId, "heal")}
-                                >
-                                    <Text style={styles.hpButtonText}>+</Text>
-                                </Pressable>
-
-                                <Pressable
-                                    style={[styles.hpButton, styles.tempButton]}
-                                    onPress={() => applyChange(c.internalId, "temp")}
-                                >
-                                    <Text style={styles.hpButtonText}>🛡</Text>
-                                </Pressable>
-                            </View>
-                        </View>
-                    ))
+                        );
+                    })
                 )}
             </ScrollView>
 
-            {/* FOOTER FIJO ABAJO */}
-            <View style={styles.footer}>
-                {/* Panel deslizante con formulario */}
+            {/* Formulario para añadir a la batalla, oculto por defecto para despejar la pantalla principal. */}
+            <View style={[styles.footer, { bottom: keyboardOffset }]}>
                 <Animated.View
                     style={[
                         styles.addPanel,
@@ -337,7 +370,10 @@ export default function BattleDetailScreen() {
                                 styles.fromChip,
                                 fromType === "character" && styles.fromChipActive,
                             ]}
-                            onPress={() => setFromType("character")}
+                            onPress={() => {
+                                setFromType("character");
+                                setFormNameOverride("");
+                            }}
                         >
                             <Text
                                 style={[
@@ -354,7 +390,15 @@ export default function BattleDetailScreen() {
                                 styles.fromChip,
                                 fromType === "creature" && styles.fromChipActive,
                             ]}
-                            onPress={() => setFromType("creature")}
+                            onPress={() => {
+                                setFromType("creature");
+                                if (selectedId) {
+                                    const cr = creatures.find(
+                                        (c) => c.id === parseInt(selectedId, 10)
+                                    );
+                                    setFormNameOverride(cr?.name || "");
+                                }
+                            }}
                         >
                             <Text
                                 style={[
@@ -367,6 +411,7 @@ export default function BattleDetailScreen() {
                         </Pressable>
                     </View>
 
+                    {/* Lista de personajes y criaturas para añadir a la batalla */}
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -374,7 +419,7 @@ export default function BattleDetailScreen() {
                     >
                         {(fromType === "character" ? characters : creatures).map((item) => (
                             <Pressable
-                                key={`${fromType}-${item.id}`}
+                                key={item.id}
                                 style={[
                                     styles.nameChip,
                                     selectedId === String(item.id) && styles.nameChipActive,
@@ -382,12 +427,18 @@ export default function BattleDetailScreen() {
                                 onPress={() => {
                                     setSelectedId(String(item.id));
                                     setFormHpMax(String(item.hp ?? ""));
+                                    if (fromType === "creature") {
+                                        setFormNameOverride(item.name || "");
+                                    } else {
+                                        setFormNameOverride("");
+                                    }
                                 }}
                             >
                                 <Text
                                     style={[
                                         styles.nameChipText,
-                                        selectedId === String(item.id) && styles.nameChipTextActive,
+                                        selectedId === String(item.id) &&
+                                        styles.nameChipTextActive,
                                     ]}
                                 >
                                     {item.name}
@@ -396,15 +447,29 @@ export default function BattleDetailScreen() {
                         ))}
                     </ScrollView>
 
+                    {/* Nombre de criatura en la batalla, para cuando haya mas de uno del mismo tipo. */}
+                    {fromType === "creature" && (
+                        <View style={{ marginBottom: 8 }}>
+                            <Text style={styles.label}>
+                                Nombre en esta batalla (opcional)
+                            </Text>
+                            <TextInput
+                                style={styles.input}
+                                value={formNameOverride}
+                                onChangeText={setFormNameOverride}
+                                placeholder="Ej: Bandido 1, Guardián, Lobo A..."
+                                placeholderTextColor="#6b7280"
+                            />
+                        </View>
+                    )}
+
                     <View style={styles.inputsRow}>
                         <View style={styles.fieldSmall}>
                             <Text style={styles.label}>HP máx.</Text>
                             <TextInput
                                 style={styles.input}
                                 value={formHpMax}
-                                onChangeText={(t) =>
-                                    setFormHpMax(t.replace(/[^0-9]/g, ""))
-                                }
+                                onChangeText={(t) => setFormHpMax(t.replace(/[^0-9]/g, ""))}
                                 keyboardType="numeric"
                             />
                         </View>
@@ -429,7 +494,6 @@ export default function BattleDetailScreen() {
                     </Pressable>
                 </Animated.View>
 
-                {/* Botón de toggle (SIEMPRE ABAJO) */}
                 <Pressable style={styles.toggleButton} onPress={togglePanel}>
                     <Text style={styles.toggleText}>
                         {isPanelOpen
@@ -442,7 +506,6 @@ export default function BattleDetailScreen() {
     );
 }
 
-// ------------------ ESTILOS ------------------
 
 const styles = StyleSheet.create({
     container: {
@@ -466,7 +529,7 @@ const styles = StyleSheet.create({
     header: {
         paddingHorizontal: 16,
         paddingTop: 16,
-        paddingBottom: 12,
+        paddingBottom: 8,
         alignItems: "center",
     },
     battleName: {
@@ -479,13 +542,6 @@ const styles = StyleSheet.create({
         color: "#9ca3af",
         fontSize: 12,
         textAlign: "center",
-    },
-    sectionTitle: {
-        color: "#e5e7eb",
-        fontSize: 16,
-        fontWeight: "600",
-        marginHorizontal: 16,
-        marginBottom: 8,
     },
     emptyText: {
         color: "#9ca3af",
@@ -593,7 +649,7 @@ const styles = StyleSheet.create({
         position: "absolute",
         left: 0,
         right: 0,
-        bottom: 0,
+        // bottom lo controlamos en línea con keyboardOffset
     },
     addPanel: {
         backgroundColor: "#020617",

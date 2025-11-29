@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Platform,
+    Keyboard,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -20,327 +20,198 @@ import {
 export default function CharactersScreen() {
     const [characters, setCharacters] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const [name, setName] = useState("");
+    const [hp, setHp] = useState("");
+    const [ac, setAc] = useState("");
+    const [notes, setNotes] = useState("");
+
+    const [editingId, setEditingId] = useState(null);
     const [saving, setSaving] = useState(false);
 
-    // formulario de creación
-    const [form, setForm] = useState({
-        name: "",
-        hp: "",
-        ac: "",
-        notes: "",
-    });
-
-    // formulario de edición
-    const [editing, setEditing] = useState(null); // { id, name, hp, ac, notes }
+    const [keyboardOffset, setKeyboardOffset] = useState(0);
 
     useEffect(() => {
         loadCharacters();
+    }, []);
+
+    useEffect(() => {
+        const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
+            setKeyboardOffset(e.endCoordinates.height);
+        });
+        const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+            setKeyboardOffset(0);
+        });
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
     }, []);
 
     const loadCharacters = async () => {
         try {
             setLoading(true);
             const data = await getAllCharacters();
-            setCharacters(data || []);
+            setCharacters(Array.isArray(data) ? data : []);
         } catch (error) {
             console.log("Error cargando personajes:", error);
+            Alert.alert("Error", "No se pudieron cargar los personajes.");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleChange = (field, value) => {
-        setForm((prev) => ({
-            ...prev,
-            [field]:
-                field === "name" || field === "notes"
-                    ? value
-                    : value.replace(/[^0-9]/g, ""),
-        }));
+    const resetForm = () => {
+        setName("");
+        setHp("");
+        setAc("");
+        setNotes("");
+        setEditingId(null);
     };
 
-    const handleCreate = async () => {
-        const name = form.name.trim();
-        const hpNum = parseInt(form.hp, 10);
-        const acNum = parseInt(form.ac, 10);
-        const notes = form.notes.trim() || null;
+    const fillFormForEdit = (ch) => {
+        setEditingId(ch.id);
+        setName(ch.name || "");
+        setHp(ch.hp?.toString() || "");
+        setAc(ch.ac?.toString() || "");
+        setNotes(ch.notes || "");
+    };
 
-        if (!name || isNaN(hpNum) || isNaN(acNum)) {
-            Alert.alert("Campos incompletos", "Nombre, HP y AC son obligatorios.");
+    const handleSubmit = async () => {
+        if (!name.trim()) {
+            Alert.alert("Nombre requerido", "El personaje necesita un nombre.");
             return;
         }
 
+        const body = {
+            name: name.trim(),
+            hp: hp ? parseInt(hp, 10) : 0,
+            ac: ac ? parseInt(ac, 10) : 0,
+            notes: notes.trim() || null,
+        };
+
         try {
             setSaving(true);
-            const body = {
-                name,
-                hp: hpNum,
-                ac: acNum,
-                notes,
-            };
-            await createCharacter(body);
-            setForm({ name: "", hp: "", ac: "", notes: "" });
+            if (editingId) {
+                await updateCharacter(editingId, body);
+            } else {
+                await createCharacter(body);
+            }
+            resetForm();
             await loadCharacters();
         } catch (error) {
-            console.log("Error creando personaje:", error);
-            Alert.alert("Error", "No se pudo crear el personaje.");
+            console.log("Error guardando personaje:", error);
+            Alert.alert("Error", "No se pudo guardar el personaje.");
         } finally {
             setSaving(false);
         }
     };
 
-    // ---- borrado real (compartido por web y móvil) ----
-    const reallyDeleteCharacter = async (id) => {
-        try {
-            setSaving(true);
-            await deleteCharacter(id);
-            setCharacters((prev) => prev.filter((ch) => ch.id !== id));
-            if (editing && editing.id === id) setEditing(null);
-        } catch (error) {
-            console.log("Error eliminando personaje:", error);
-            Alert.alert("Error", "No se pudo eliminar el personaje.");
-        } finally {
-            setSaving(false);
-        }
+    const handleDelete = async (id) => {
+        Alert.alert("Eliminar", "¿Seguro que quieres eliminar este personaje?", [
+            { text: "Cancelar", style: "cancel" },
+            {
+                text: "Eliminar",
+                style: "destructive",
+                onPress: async () => {
+                    try {
+                        await deleteCharacter(id);
+                        if (editingId === id) resetForm();
+                        await loadCharacters();
+                    } catch (error) {
+                        console.log("Error eliminando personaje:", error);
+                        Alert.alert("Error", "No se pudo eliminar el personaje.");
+                    }
+                },
+            },
+        ]);
     };
-
-    const handleDelete = (id, name) => {
-        if (Platform.OS === "web") {
-            const confirmed = window.confirm(
-                `¿Seguro que quieres eliminar a "${name}"?`
-            );
-            if (!confirmed) return;
-            reallyDeleteCharacter(id);
-        } else {
-            Alert.alert(
-                "Eliminar personaje",
-                `¿Seguro que quieres eliminar a "${name}"?`,
-                [
-                    { text: "Cancelar", style: "cancel" },
-                    {
-                        text: "Eliminar",
-                        style: "destructive",
-                        onPress: () => {
-                            reallyDeleteCharacter(id);
-                        },
-                    },
-                ]
-            );
-        }
-    };
-
-    // ----- EDICIÓN -----
-
-    const startEdit = (ch) => {
-        setEditing({
-            id: ch.id,
-            name: ch.name || "",
-            hp: String(ch.hp ?? ""),
-            ac: String(ch.ac ?? ""),
-            notes: ch.notes || "",
-        });
-    };
-
-    const handleEditChange = (field, value) => {
-        setEditing((prev) => {
-            if (!prev) return prev;
-            return {
-                ...prev,
-                [field]:
-                    field === "name" || field === "notes"
-                        ? value
-                        : value.replace(/[^0-9]/g, ""),
-            };
-        });
-    };
-
-    const handleSaveEdit = async () => {
-        if (!editing) return;
-
-        const name = editing.name.trim();
-        const hpNum = parseInt(editing.hp, 10);
-        const acNum = parseInt(editing.ac, 10);
-        const notes = editing.notes.trim() || null;
-
-        if (!name || isNaN(hpNum) || isNaN(acNum)) {
-            Alert.alert(
-                "Campos incompletos",
-                "Nombre, HP y AC son obligatorios para editar."
-            );
-            return;
-        }
-
-        try {
-            setSaving(true);
-            const body = {
-                name,
-                hp: hpNum,
-                ac: acNum,
-                notes,
-            };
-            await updateCharacter(editing.id, body);
-            setEditing(null);
-            await loadCharacters();
-        } catch (error) {
-            console.log("Error actualizando personaje:", error);
-            Alert.alert("Error", "No se pudo actualizar el personaje.");
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <View style={styles.center}>
-                <ActivityIndicator color="#fff" />
-                <Text style={styles.loadingText}>Cargando personajes...</Text>
-            </View>
-        );
-    }
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Personajes</Text>
+        <View style={[styles.container, { paddingBottom: keyboardOffset }]}>
+            <View style={styles.inner}>
+                <Text style={styles.title}>Personajes</Text>
 
-            <ScrollView
-                style={styles.listArea}
-                contentContainerStyle={{ paddingBottom: 12 }}
-            >
-                {characters.length === 0 ? (
-                    <Text style={styles.emptyText}>
-                        Aún no tienes personajes creados.
-                    </Text>
-                ) : (
-                    characters.map((ch) => (
-                        <View key={ch.id} style={styles.row}>
-                            <View style={styles.rowText}>
-                                <Text style={styles.name}>{ch.name}</Text>
-                                <Text style={styles.stats}>
-                                    {ch.hp} HP · AC {ch.ac}
-                                </Text>
-                                {ch.notes ? (
-                                    <Text style={styles.notes}>📝 {ch.notes}</Text>
-                                ) : null}
-                            </View>
-
-                            <View style={styles.rowButtons}>
-                                <Pressable
-                                    style={styles.editButton}
-                                    onPress={() => startEdit(ch)}
-                                >
-                                    <Text style={styles.editText}>Editar</Text>
-                                </Pressable>
-
-                                <Pressable
-                                    style={styles.deleteButton}
-                                    onPress={() => handleDelete(ch.id, ch.name)}
-                                >
-                                    <Text style={styles.deleteText}>Eliminar</Text>
-                                </Pressable>
-                            </View>
-                        </View>
-                    ))
-                )}
-            </ScrollView>
-
-            {/* ABAJO: O CREAR O EDITAR, NUNCA LOS DOS A LA VEZ */}
-            {saving && (
-                <Text style={styles.savingText}>
-                    Guardando cambios en personajes...
-                </Text>
-            )}
-
-            {!editing ? (
-                // FORMULARIO CREAR
-                <View style={styles.addBox}>
-                    <Text style={styles.addTitle}>Crear nuevo personaje</Text>
-
-                    <View style={styles.addRow}>
-                        <View style={styles.addFieldLarge}>
-                            <Text style={styles.label}>Nombre</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={form.name}
-                                onChangeText={(text) => handleChange("name", text)}
-                                placeholder="Aelar, Thia, etc."
-                                placeholderTextColor="#6b7280"
-                            />
-                        </View>
-
-                        <View style={styles.addFieldSmall}>
-                            <Text style={styles.label}>HP</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={form.hp}
-                                onChangeText={(text) => handleChange("hp", text)}
-                                keyboardType="numeric"
-                            />
-                        </View>
-
-                        <View style={styles.addFieldSmall}>
-                            <Text style={styles.label}>AC</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={form.ac}
-                                onChangeText={(text) => handleChange("ac", text)}
-                                keyboardType="numeric"
-                            />
-                        </View>
+                {loading ? (
+                    <View style={styles.center}>
+                        <ActivityIndicator color="#fff" />
+                        <Text style={styles.loadingText}>Cargando...</Text>
                     </View>
+                ) : (
+                    <ScrollView
+                        style={styles.scroll}
+                        contentContainerStyle={{ paddingBottom: 20 }}
+                    >
+                        {characters.length === 0 ? (
+                            <Text style={styles.emptyText}>No hay personajes todavía.</Text>
+                        ) : (
+                            characters.map((ch) => (
+                                <View key={ch.id} style={styles.card}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.cardName}>{ch.name}</Text>
+                                        <Text style={styles.cardLine}>
+                                            HP: <Text style={styles.hpText}>{ch.hp ?? 0}</Text> · AC:{" "}
+                                            <Text style={styles.acText}>{ch.ac ?? 0}</Text>
+                                        </Text>
+                                        {ch.notes ? (
+                                            <Text style={styles.cardNotes} numberOfLines={2}>
+                                                {ch.notes}
+                                            </Text>
+                                        ) : null}
+                                    </View>
 
-                    <Text style={styles.label}>Notas (opcional)</Text>
+                                    <View style={styles.cardButtons}>
+                                        <Pressable
+                                            style={[styles.smallButton, styles.editButton]}
+                                            onPress={() => fillFormForEdit(ch)}
+                                        >
+                                            <Text style={styles.smallButtonText}>Editar</Text>
+                                        </Pressable>
+                                        <Pressable
+                                            style={[styles.smallButton, styles.deleteButton]}
+                                            onPress={() => handleDelete(ch.id)}
+                                        >
+                                            <Text style={styles.smallButtonText}>X</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            ))
+                        )}
+                    </ScrollView>
+                )}
+
+                {/* Formulario para crear/editar personajes. */}
+                <View style={styles.form}>
+                    <Text style={styles.formTitle}>
+                        {editingId ? "Editar personaje" : "Crear personaje"}
+                    </Text>
+
+                    <Text style={styles.label}>Nombre</Text>
                     <TextInput
-                        style={[styles.input, styles.notesInput]}
-                        value={form.notes}
-                        onChangeText={(text) => handleChange("notes", text)}
-                        placeholder="Clase, arma, rasgo especial..."
+                        style={styles.input}
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="Nombre del personaje"
                         placeholderTextColor="#6b7280"
-                        multiline
                     />
 
-                    <Pressable
-                        style={styles.addButton}
-                        onPress={handleCreate}
-                        disabled={saving}
-                    >
-                        <Text style={styles.addButtonText}>+ Añadir personaje</Text>
-                    </Pressable>
-                </View>
-            ) : (
-                // FORMULARIO EDICIÓN
-                <View style={styles.editBox}>
-                    <Text style={styles.editTitle}>
-                        Editar personaje: {editing.name || "Sin nombre"}
-                    </Text>
-
-                    <View style={styles.addRow}>
-                        <View style={styles.addFieldLarge}>
-                            <Text style={styles.label}>Nombre</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editing.name}
-                                onChangeText={(text) => handleEditChange("name", text)}
-                                placeholder="Nombre"
-                                placeholderTextColor="#6b7280"
-                            />
-                        </View>
-
-                        <View style={styles.addFieldSmall}>
+                    <View style={styles.row}>
+                        <View style={styles.fieldHalf}>
                             <Text style={styles.label}>HP</Text>
                             <TextInput
                                 style={styles.input}
-                                value={editing.hp}
-                                onChangeText={(text) => handleEditChange("hp", text)}
+                                value={hp}
+                                onChangeText={(t) => setHp(t.replace(/[^0-9]/g, ""))}
                                 keyboardType="numeric"
                             />
                         </View>
-
-                        <View style={styles.addFieldSmall}>
+                        <View style={styles.fieldHalf}>
                             <Text style={styles.label}>AC</Text>
                             <TextInput
                                 style={styles.input}
-                                value={editing.ac}
-                                onChangeText={(text) => handleEditChange("ac", text)}
+                                value={ac}
+                                onChangeText={(t) => setAc(t.replace(/[^0-9]/g, ""))}
                                 keyboardType="numeric"
                             />
                         </View>
@@ -349,30 +220,36 @@ export default function CharactersScreen() {
                     <Text style={styles.label}>Notas</Text>
                     <TextInput
                         style={[styles.input, styles.notesInput]}
-                        value={editing.notes}
-                        onChangeText={(text) => handleEditChange("notes", text)}
+                        value={notes}
+                        onChangeText={setNotes}
+                        placeholder="Notas opcionales"
+                        placeholderTextColor="#6b7280"
                         multiline
                     />
 
-                    <View style={styles.editButtonsRow}>
+                    <View style={styles.formButtons}>
                         <Pressable
-                            style={[styles.editActionButton, styles.editCancel]}
-                            onPress={() => setEditing(null)}
+                            style={styles.saveButton}
+                            onPress={handleSubmit}
                             disabled={saving}
                         >
-                            <Text style={styles.editActionText}>Cancelar</Text>
+                            <Text style={styles.saveButtonText}>
+                                {saving
+                                    ? "Guardando..."
+                                    : editingId
+                                        ? "Guardar cambios"
+                                        : "Crear personaje"}
+                            </Text>
                         </Pressable>
 
-                        <Pressable
-                            style={[styles.editActionButton, styles.editSave]}
-                            onPress={handleSaveEdit}
-                            disabled={saving}
-                        >
-                            <Text style={styles.editActionText}>Guardar cambios</Text>
-                        </Pressable>
+                        {editingId && (
+                            <Pressable style={styles.cancelButton} onPress={resetForm}>
+                                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                            </Pressable>
+                        )}
                     </View>
                 </View>
-            )}
+            </View>
         </View>
     );
 }
@@ -381,12 +258,18 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#020617",
+    },
+    inner: {
+        flex: 1,
         paddingHorizontal: 16,
         paddingTop: 16,
     },
+    scroll: {
+        flex: 1,
+        marginBottom: 12,
+    },
     center: {
         flex: 1,
-        backgroundColor: "#020617",
         alignItems: "center",
         justifyContent: "center",
     },
@@ -395,106 +278,81 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     title: {
-        color: "white",
+        color: "#fff",
         fontSize: 22,
         fontWeight: "bold",
         marginBottom: 12,
         textAlign: "center",
     },
-    listArea: {
-        flex: 1,
-        marginBottom: 12,
-    },
     emptyText: {
         color: "#9ca3af",
         textAlign: "center",
-        marginTop: 20,
+        marginTop: 12,
     },
-    row: {
+    card: {
         flexDirection: "row",
-        alignItems: "flex-start",
         backgroundColor: "#0f172a",
         borderRadius: 10,
         padding: 10,
         marginBottom: 8,
+        borderWidth: 1,
+        borderColor: "#1f2937",
     },
-    rowText: {
-        flex: 1,
-    },
-    name: {
-        color: "white",
+    cardName: {
+        color: "#fff",
         fontSize: 16,
-        fontWeight: "500",
+        fontWeight: "600",
+        marginBottom: 2,
     },
-    stats: {
+    cardLine: {
         color: "#e5e7eb",
         fontSize: 13,
-        marginTop: 2,
+        marginBottom: 2,
     },
-    notes: {
+    hpText: {
+        color: "#22c55e",
+    },
+    acText: {
+        color: "#f97316",
+    },
+    cardNotes: {
         color: "#9ca3af",
         fontSize: 12,
-        marginTop: 4,
     },
-    rowButtons: {
-        flexDirection: "column",
+    cardButtons: {
+        justifyContent: "center",
+        alignItems: "flex-end",
         gap: 4,
         marginLeft: 8,
     },
-    deleteButton: {
+    smallButton: {
         paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: "#f87171",
-        marginTop: 4,
+        paddingVertical: 4,
+        borderRadius: 6,
     },
-    deleteText: {
-        color: "#f87171",
+    smallButtonText: {
+        color: "white",
         fontSize: 12,
-        fontWeight: "500",
+        fontWeight: "600",
     },
     editButton: {
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: "#38bdf8",
+        backgroundColor: "#4b5563",
     },
-    editText: {
-        color: "#38bdf8",
-        fontSize: 12,
-        fontWeight: "500",
+    deleteButton: {
+        backgroundColor: "#b91c1c",
     },
 
-    addBox: {
+    form: {
         borderTopWidth: 1,
         borderTopColor: "#1f2937",
         paddingTop: 10,
-        paddingBottom: 8,
+        paddingBottom: 12,
     },
-    savingText: {
-        color: "#a5b4fc",
-        textAlign: "center",
-        marginBottom: 4,
-        fontSize: 12,
-    },
-    addTitle: {
+    formTitle: {
         color: "#e5e7eb",
         fontSize: 16,
         fontWeight: "600",
         marginBottom: 8,
-    },
-    addRow: {
-        flexDirection: "row",
-        gap: 8,
-        marginBottom: 10,
-    },
-    addFieldLarge: {
-        flex: 1,
-    },
-    addFieldSmall: {
-        width: 70,
     },
     label: {
         color: "#9ca3af",
@@ -502,65 +360,52 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
     input: {
-        minHeight: 34,
-        borderRadius: 6,
         borderWidth: 1,
         borderColor: "#4b5563",
+        borderRadius: 8,
         color: "white",
-        paddingHorizontal: 6,
-        paddingVertical: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
         fontSize: 14,
+        marginBottom: 8,
     },
     notesInput: {
         minHeight: 60,
         textAlignVertical: "top",
-        marginBottom: 8,
     },
-    addButton: {
-        backgroundColor: "#4f46e5",
-        paddingVertical: 10,
-        borderRadius: 8,
-        alignItems: "center",
+    row: {
+        flexDirection: "row",
+        gap: 8,
+        marginBottom: 4,
     },
-    addButtonText: {
-        color: "white",
-        fontWeight: "bold",
-        fontSize: 16,
+    fieldHalf: {
+        flex: 1,
     },
-
-    editBox: {
-        borderTopWidth: 1,
-        borderTopColor: "#1f2937",
-        paddingTop: 10,
-        paddingBottom: 12,
+    formButtons: {
+        flexDirection: "row",
+        gap: 8,
         marginTop: 4,
     },
-    editTitle: {
-        color: "#e5e7eb",
-        fontSize: 15,
-        fontWeight: "600",
-        marginBottom: 8,
-    },
-    editButtonsRow: {
-        flexDirection: "row",
-        justifyContent: "flex-end",
-        gap: 8,
-        marginTop: 8,
-    },
-    editActionButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
+    saveButton: {
+        flex: 1,
+        backgroundColor: "#4f46e5",
         borderRadius: 8,
+        paddingVertical: 10,
+        alignItems: "center",
     },
-    editCancel: {
-        backgroundColor: "#374151",
-    },
-    editSave: {
-        backgroundColor: "#22c55e",
-    },
-    editActionText: {
+    saveButtonText: {
         color: "white",
-        fontSize: 13,
+        fontWeight: "600",
+    },
+    cancelButton: {
+        backgroundColor: "#374151",
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        alignItems: "center",
+    },
+    cancelButtonText: {
+        color: "white",
         fontWeight: "500",
     },
 });

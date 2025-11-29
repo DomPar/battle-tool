@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Platform,
+    Keyboard,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -15,323 +15,349 @@ import {
     createBattle,
     deleteBattle,
     getAllBattles,
+    updateBattle,
 } from "../../../services/apiService";
 
 export default function BattlesScreen() {
-  const router = useRouter();
+    const router = useRouter();
+    const [battles, setBattles] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-  const [battles, setBattles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+    const [name, setName] = useState("");
+    const [notes, setNotes] = useState("");
+    const [editingId, setEditingId] = useState(null);
+    const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({
-    name: "",
-    notes: "",
-  });
+    const [keyboardOffset, setKeyboardOffset] = useState(0);
 
-  useEffect(() => {
-    loadBattles();
-  }, []);
+    useEffect(() => {
+        loadBattles();
+    }, []);
 
-  const loadBattles = async () => {
-    try {
-      setLoading(true);
-      const data = await getAllBattles();
-      // Por si algún día quieres ordenarlas por id descendente
-      const sorted = (data || []).slice().sort((a, b) => b.id - a.id);
-      setBattles(sorted);
-    } catch (error) {
-      console.log("Error cargando batallas:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    useEffect(() => {
+        const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
+            setKeyboardOffset(e.endCoordinates.height);
+        });
+        const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+            setKeyboardOffset(0);
+        });
 
-  const handleChange = (field, value) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, []);
 
-  const handleCreateBattle = async () => {
-    const name = form.name.trim();
-    const notes = form.notes.trim() || null;
+    const loadBattles = async () => {
+        try {
+            setLoading(true);
+            const data = await getAllBattles();
+            setBattles(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.log("Error cargando batallas:", error);
+            Alert.alert("Error", "No se pudieron cargar las batallas.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    if (!name) {
-      Alert.alert("Nombre obligatorio", "Ponle un nombre a la batalla.");
-      return;
-    }
+    const resetForm = () => {
+        setName("");
+        setNotes("");
+        setEditingId(null);
+    };
 
-    try {
-      setSaving(true);
-      const body = {
-        name,
-        notes,
-        // combatants se inicializa vacío (default [] en la tabla)
-      };
-      await createBattle(body);
-      setForm({ name: "", notes: "" });
-      await loadBattles();
-    } catch (error) {
-      console.log("Error creando batalla:", error);
-      Alert.alert("Error", "No se pudo crear la batalla.");
-    } finally {
-      setSaving(false);
-    }
-  };
+    const fillFormForEdit = (battle) => {
+        setEditingId(battle.id);
+        setName(battle.name || "");
+        setNotes(battle.notes || "");
+    };
 
-  // ---- borrar batalla ----
-  const reallyDeleteBattle = async (id) => {
-    try {
-      setSaving(true);
-      await deleteBattle(id);
-      setBattles((prev) => prev.filter((b) => b.id !== id));
-    } catch (error) {
-      console.log("Error eliminando batalla:", error);
-      Alert.alert("Error", "No se pudo eliminar la batalla.");
-    } finally {
-      setSaving(false);
-    }
-  };
+    const handleSubmit = async () => {
+        if (!name.trim()) {
+            Alert.alert("Nombre requerido", "La batalla necesita un nombre.");
+            return;
+        }
 
-  const handleDeleteBattle = (id, name) => {
-    const msg = `¿Seguro que quieres eliminar la batalla "${name}"?`;
+        const body = {
+            name: name.trim(),
+            notes: notes.trim() || null,
+        };
 
-    if (Platform.OS === "web") {
-      const ok = window.confirm(msg);
-      if (!ok) return;
-      reallyDeleteBattle(id);
-    } else {
-      Alert.alert("Eliminar batalla", msg, [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: () => reallyDeleteBattle(id),
-        },
-      ]);
-    }
-  };
+        try {
+            setSaving(true);
+            if (editingId) {
+                await updateBattle(editingId, body);
+            } else {
+                await createBattle({ ...body, combatants: [] });
+            }
+            resetForm();
+            await loadBattles();
+        } catch (error) {
+            console.log("Error guardando batalla:", error);
+            Alert.alert("Error", "No se pudo guardar la batalla.");
+        } finally {
+            setSaving(false);
+        }
+    };
 
-  const goToBattle = (id) => {
-    router.push(`/battles/${id}`);
-  };
+    const handleDelete = async (id) => {
+        Alert.alert("Eliminar", "¿Seguro que quieres eliminar esta batalla?", [
+            { text: "Cancelar", style: "cancel" },
+            {
+                text: "Eliminar",
+                style: "destructive",
+                onPress: async () => {
+                    try {
+                        await deleteBattle(id);
+                        if (editingId === id) resetForm();
+                        await loadBattles();
+                    } catch (error) {
+                        console.log("Error eliminando batalla:", error);
+                        Alert.alert("Error", "No se pudo eliminar la batalla.");
+                    }
+                },
+            },
+        ]);
+    };
 
-  if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#fff" />
-        <Text style={styles.loadingText}>Cargando batallas...</Text>
-      </View>
+        <View style={[styles.container, { paddingBottom: keyboardOffset }]}>
+            <View style={styles.inner}>
+                <Text style={styles.title}>Batallas</Text>
+
+                {loading ? (
+                    <View style={styles.center}>
+                        <ActivityIndicator color="#fff" />
+                        <Text style={styles.loadingText}>Cargando...</Text>
+                    </View>
+                ) : (
+                    <ScrollView
+                        style={styles.scroll}
+                        contentContainerStyle={{ paddingBottom: 20 }}
+                    >
+                        {battles.length === 0 ? (
+                            <Text style={styles.emptyText}>No hay batallas todavía.</Text>
+                        ) : (
+                            battles.map((b) => (
+                                <View key={b.id} style={styles.battleCard}>
+                                    <Pressable
+                                        style={{ flex: 1 }}
+                                        onPress={() => router.push(`/battles/${b.id}`)}
+                                    >
+                                        <Text style={styles.battleName}>{b.name}</Text>
+                                        {b.notes ? (
+                                            <Text style={styles.battleNotes} numberOfLines={2}>
+                                                {b.notes}
+                                            </Text>
+                                        ) : null}
+                                    </Pressable>
+
+                                    <View style={styles.cardButtons}>
+                                        <Pressable
+                                            style={[styles.smallButton, styles.editButton]}
+                                            onPress={() => fillFormForEdit(b)}
+                                        >
+                                            <Text style={styles.smallButtonText}>Editar</Text>
+                                        </Pressable>
+                                        <Pressable
+                                            style={[styles.smallButton, styles.deleteButton]}
+                                            onPress={() => handleDelete(b.id)}
+                                        >
+                                            <Text style={styles.smallButtonText}>X</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            ))
+                        )}
+                    </ScrollView>
+                )}
+
+                {/* Formulario para crear/editar batalla */}
+                <View style={styles.form}>
+                    <Text style={styles.formTitle}>
+                        {editingId ? "Editar batalla" : "Crear nueva batalla"}
+                    </Text>
+
+                    <Text style={styles.label}>Nombre</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="Nombre de la batalla"
+                        placeholderTextColor="#6b7280"
+                    />
+
+                    <Text style={styles.label}>Notas (opcional)</Text>
+                    <TextInput
+                        style={[styles.input, styles.notesInput]}
+                        value={notes}
+                        onChangeText={setNotes}
+                        placeholder="Notas, contexto, etc."
+                        placeholderTextColor="#6b7280"
+                        multiline
+                    />
+
+                    <View style={styles.formButtons}>
+                        <Pressable
+                            style={styles.saveButton}
+                            onPress={handleSubmit}
+                            disabled={saving}
+                        >
+                            <Text style={styles.saveButtonText}>
+                                {saving
+                                    ? "Guardando..."
+                                    : editingId
+                                        ? "Guardar cambios"
+                                        : "+ Crear batalla"}
+                            </Text>
+                        </Pressable>
+
+                        {editingId && (
+                            <Pressable style={styles.cancelButton} onPress={resetForm}>
+                                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                            </Pressable>
+                        )}
+                    </View>
+                </View>
+            </View>
+        </View>
     );
-  }
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Batallas</Text>
-
-      <ScrollView
-        style={styles.listArea}
-        contentContainerStyle={{ paddingBottom: 12 }}
-      >
-        {battles.length === 0 ? (
-          <Text style={styles.emptyText}>
-            Aún no tienes batallas creadas. Crea una abajo.
-          </Text>
-        ) : (
-          battles.map((b) => (
-            <Pressable
-              key={b.id}
-              style={styles.row}
-              onPress={() => goToBattle(b.id)}
-            >
-              <View style={styles.rowText}>
-                <Text style={styles.name}>{b.name}</Text>
-                {b.notes ? (
-                  <Text style={styles.notes}>📝 {b.notes}</Text>
-                ) : null}
-                <Text style={styles.smallInfo}>
-                  {Array.isArray(b.combatants)
-                    ? `${b.combatants.length} combatientes`
-                    : "0 combatientes"}
-                </Text>
-              </View>
-
-              <Pressable
-                style={styles.deleteButton}
-                onPress={() => handleDeleteBattle(b.id, b.name)}
-              >
-                <Text style={styles.deleteText}>Eliminar</Text>
-              </Pressable>
-            </Pressable>
-          ))
-        )}
-      </ScrollView>
-
-      {saving && (
-        <Text style={styles.savingText}>
-          Guardando cambios en batallas...
-        </Text>
-      )}
-
-      {/* FORMULARIO CREAR BATALLA */}
-      <View style={styles.addBox}>
-        <Text style={styles.addTitle}>Crear nueva batalla</Text>
-
-        <Text style={styles.label}>Nombre de la batalla</Text>
-        <TextInput
-          style={styles.input}
-          value={form.name}
-          onChangeText={(text) => handleChange("name", text)}
-          placeholder="Guarida de los bandidos, Dragón rojo, etc."
-          placeholderTextColor="#6b7280"
-        />
-
-        <Text style={styles.label}>Notas (opcional)</Text>
-        <TextInput
-          style={[styles.input, styles.notesInput]}
-          value={form.notes}
-          onChangeText={(text) => handleChange("notes", text)}
-          placeholder="Resumen, misión, lugar, etc."
-          placeholderTextColor="#6b7280"
-          multiline
-        />
-
-        <Pressable
-          style={styles.addButton}
-          onPress={handleCreateBattle}
-          disabled={saving}
-        >
-          <Text style={styles.addButtonText}>+ Crear batalla</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#020617",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  center: {
-    flex: 1,
-    backgroundColor: "#020617",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    color: "#e5e7eb",
-    marginTop: 8,
-  },
-  title: {
-    color: "white",
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  listArea: {
-    flex: 1,
-    marginBottom: 12,
-  },
-  emptyText: {
-    color: "#9ca3af",
-    textAlign: "center",
-    marginTop: 20,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#0f172a",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-  },
-  rowText: {
-    flex: 1,
-  },
-  name: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  notes: {
-    color: "#9ca3af",
-    fontSize: 12,
-    marginTop: 4,
-  },
-  smallInfo: {
-    color: "#6b7280",
-    fontSize: 11,
-    marginTop: 4,
-  },
-  deleteButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#f87171",
-    marginLeft: 8,
-    marginTop: 2,
-  },
-  deleteText: {
-    color: "#f87171",
-    fontSize: 12,
-    fontWeight: "500",
-  },
+    container: {
+        flex: 1,
+        backgroundColor: "#020617",
+    },
+    inner: {
+        flex: 1,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+    },
+    scroll: {
+        flex: 1,
+        marginBottom: 12,
+    },
+    center: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    loadingText: {
+        color: "#e5e7eb",
+        marginTop: 8,
+    },
+    title: {
+        color: "#fff",
+        fontSize: 22,
+        fontWeight: "bold",
+        marginBottom: 12,
+        textAlign: "center",
+    },
+    emptyText: {
+        color: "#9ca3af",
+        textAlign: "center",
+        marginTop: 12,
+    },
+    battleCard: {
+        flexDirection: "row",
+        backgroundColor: "#0f172a",
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: "#1f2937",
+    },
+    battleName: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "600",
+        marginBottom: 4,
+    },
+    battleNotes: {
+        color: "#9ca3af",
+        fontSize: 12,
+    },
+    cardButtons: {
+        justifyContent: "center",
+        alignItems: "flex-end",
+        gap: 4,
+        marginLeft: 8,
+    },
+    smallButton: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    smallButtonText: {
+        color: "white",
+        fontSize: 12,
+        fontWeight: "600",
+    },
+    editButton: {
+        backgroundColor: "#4b5563",
+    },
+    deleteButton: {
+        backgroundColor: "#b91c1c",
+    },
 
-  addBox: {
-    borderTopWidth: 1,
-    borderTopColor: "#1f2937",
-    paddingTop: 10,
-    paddingBottom: 12,
-  },
-  savingText: {
-    color: "#a5b4fc",
-    textAlign: "center",
-    marginBottom: 4,
-    fontSize: 12,
-  },
-  addTitle: {
-    color: "#e5e7eb",
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  label: {
-    color: "#9ca3af",
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  input: {
-    minHeight: 34,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#4b5563",
-    color: "white",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  notesInput: {
-    minHeight: 60,
-    textAlignVertical: "top",
-  },
-  addButton: {
-    backgroundColor: "#4f46e5",
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  addButtonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+    form: {
+        borderTopWidth: 1,
+        borderTopColor: "#1f2937",
+        paddingTop: 10,
+        paddingBottom: 12,
+    },
+    formTitle: {
+        color: "#e5e7eb",
+        fontSize: 16,
+        fontWeight: "600",
+        marginBottom: 8,
+    },
+    label: {
+        color: "#9ca3af",
+        fontSize: 12,
+        marginBottom: 2,
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: "#4b5563",
+        borderRadius: 8,
+        color: "white",
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        fontSize: 14,
+        marginBottom: 8,
+    },
+    notesInput: {
+        minHeight: 60,
+        textAlignVertical: "top",
+    },
+    formButtons: {
+        flexDirection: "row",
+        gap: 8,
+        marginTop: 4,
+    },
+    saveButton: {
+        flex: 1,
+        backgroundColor: "#4f46e5",
+        borderRadius: 8,
+        paddingVertical: 10,
+        alignItems: "center",
+    },
+    saveButtonText: {
+        color: "white",
+        fontWeight: "600",
+    },
+    cancelButton: {
+        backgroundColor: "#374151",
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        alignItems: "center",
+    },
+    cancelButtonText: {
+        color: "white",
+        fontWeight: "500",
+    },
 });
