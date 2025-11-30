@@ -38,8 +38,8 @@ export default function BattleDetailScreen() {
     // inputs por combatiente (cantidad a sumar/restar)
     const [amountInputs, setAmountInputs] = useState({});
 
-    // formulario añadir combatiente
-    const [fromType, setFromType] = useState("character"); // "character" | "creature"
+    // formulario para añadir combatiente
+    const [fromType, setFromType] = useState("character");
     const [selectedId, setSelectedId] = useState("");
     const [formHpMax, setFormHpMax] = useState("");
     const [formInit, setFormInit] = useState("");
@@ -348,7 +348,7 @@ export default function BattleDetailScreen() {
                 )}
             </ScrollView>
 
-            {/* Formulario para añadir a la batalla, oculto por defecto para despejar la pantalla principal. */}
+            {/* Formulario para añadir a la batalla */}
             <View style={[styles.footer, { bottom: keyboardOffset }]}>
                 <Animated.View
                     style={[

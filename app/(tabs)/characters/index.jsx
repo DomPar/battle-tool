@@ -1,7 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Image,
     Keyboard,
     Pressable,
     ScrollView,
@@ -17,6 +20,10 @@ import {
     updateCharacter,
 } from "../../../services/apiService";
 
+// Mapa de imágenes locales (avatar por personaje)
+const STORAGE_KEY = "characterImages";
+const avatarPlaceholder = require("../../../assets/images/avatarph.png");
+
 export default function CharactersScreen() {
     const [characters, setCharacters] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -30,6 +37,8 @@ export default function CharactersScreen() {
     const [saving, setSaving] = useState(false);
 
     const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+    const [imageMap, setImageMap] = useState({});
 
     useEffect(() => {
         loadCharacters();
@@ -52,8 +61,13 @@ export default function CharactersScreen() {
     const loadCharacters = async () => {
         try {
             setLoading(true);
-            const data = await getAllCharacters();
+            const [data, storedImages] = await Promise.all([
+                getAllCharacters(),
+                AsyncStorage.getItem(STORAGE_KEY),
+            ]);
+
             setCharacters(Array.isArray(data) ? data : []);
+            setImageMap(storedImages ? JSON.parse(storedImages) : {});
         } catch (error) {
             console.log("Error cargando personajes:", error);
             Alert.alert("Error", "No se pudieron cargar los personajes.");
@@ -117,6 +131,16 @@ export default function CharactersScreen() {
                 onPress: async () => {
                     try {
                         await deleteCharacter(id);
+
+                        // borrar también la imagen local asociada
+                        const newMap = { ...imageMap };
+                        delete newMap[id];
+                        setImageMap(newMap);
+                        await AsyncStorage.setItem(
+                            STORAGE_KEY,
+                            JSON.stringify(newMap)
+                        );
+
                         if (editingId === id) resetForm();
                         await loadCharacters();
                     } catch (error) {
@@ -126,6 +150,71 @@ export default function CharactersScreen() {
                 },
             },
         ]);
+    };
+
+    const pickImageForCharacter = async (id) => {
+        try {
+            // Pedir permisos de cámara
+            const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+            
+            Alert.alert(
+                "Seleccionar imagen",
+                "¿De dónde quieres obtener la imagen?",
+                [
+                    {
+                        text: "Cámara",
+                        onPress: async () => {
+                            if (cameraPermission.status !== 'granted') {
+                                Alert.alert(
+                                    "Permiso denegado",
+                                    "Necesitas dar permiso de cámara para usar esta función."
+                                );
+                                return;
+                            }
+
+                            const result = await ImagePicker.launchCameraAsync({
+                                mediaTypes: ['images'],
+                                allowsEditing: true,
+                                aspect: [3, 4],
+                                quality: 0.7,
+                            });
+
+                            if (!result.canceled && result.assets?.[0]?.uri) {
+                                const uri = result.assets[0].uri;
+                                const newMap = { ...imageMap, [id]: uri };
+                                setImageMap(newMap);
+                                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newMap));
+                            }
+                        }
+                    },
+                    {
+                        text: "Galería",
+                        onPress: async () => {
+                            const result = await ImagePicker.launchImageLibraryAsync({
+                                mediaTypes: ['images'],
+                                allowsEditing: true,
+                                aspect: [3, 4],
+                                quality: 0.7,
+                            });
+
+                            if (!result.canceled && result.assets?.[0]?.uri) {
+                                const uri = result.assets[0].uri;
+                                const newMap = { ...imageMap, [id]: uri };
+                                setImageMap(newMap);
+                                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newMap));
+                            }
+                        }
+                    },
+                    {
+                        text: "Cancelar",
+                        style: "cancel"
+                    }
+                ]
+            );
+        } catch (error) {
+            console.log("Error seleccionando imagen:", error);
+            Alert.alert("Error", "No se pudo seleccionar la imagen.");
+        }
     };
 
     return (
@@ -148,20 +237,41 @@ export default function CharactersScreen() {
                         ) : (
                             characters.map((ch) => (
                                 <View key={ch.id} style={styles.card}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.cardName}>{ch.name}</Text>
-                                        <Text style={styles.cardLine}>
-                                            HP: <Text style={styles.hpText}>{ch.hp ?? 0}</Text> · AC:{" "}
-                                            <Text style={styles.acText}>{ch.ac ?? 0}</Text>
-                                        </Text>
-                                        {ch.notes ? (
-                                            <Text style={styles.cardNotes} numberOfLines={2}>
-                                                {ch.notes}
+                                    <View style={styles.cardLeft}>
+                                        <View style={styles.avatarBox}>
+                                            <Image
+                                                source={
+                                                    imageMap[ch.id]
+                                                        ? { uri: imageMap[ch.id] }
+                                                        : avatarPlaceholder
+                                                }
+                                                style={styles.avatar}
+                                            />
+                                        </View>
+
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.cardName}>{ch.name}</Text>
+                                            <Text style={styles.cardLine}>
+                                                HP:{" "}
+                                                <Text style={styles.hpText}>{ch.hp ?? 0}</Text> · AC:{" "}
+                                                <Text style={styles.acText}>{ch.ac ?? 0}</Text>
                                             </Text>
-                                        ) : null}
+                                            {ch.notes ? (
+                                                <Text style={styles.cardNotes} numberOfLines={2}>
+                                                    {ch.notes}
+                                                </Text>
+                                            ) : null}
+                                        </View>
                                     </View>
 
                                     <View style={styles.cardButtons}>
+                                        <Pressable
+                                            style={[styles.smallButton, styles.photoButton]}
+                                            onPress={() => pickImageForCharacter(ch.id)}
+                                        >
+                                            <Text style={styles.smallButtonText}>Foto</Text>
+                                        </Pressable>
+
                                         <Pressable
                                             style={[styles.smallButton, styles.editButton]}
                                             onPress={() => fillFormForEdit(ch)}
@@ -298,6 +408,24 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#1f2937",
     },
+    cardLeft: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    avatarBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 10,
+        overflow: "hidden",
+        marginRight: 6,
+        backgroundColor: "#020617",
+    },
+    avatar: {
+        width: "100%",
+        height: "100%",
+    },
     cardName: {
         color: "#fff",
         fontSize: 16,
@@ -334,6 +462,9 @@ const styles = StyleSheet.create({
         color: "white",
         fontSize: 12,
         fontWeight: "600",
+    },
+    photoButton: {
+        backgroundColor: "#0ea5e9",
     },
     editButton: {
         backgroundColor: "#4b5563",
