@@ -40,14 +40,14 @@ export default function BattleDetailScreen() {
     const [selectedId, setSelectedId] = useState("");
     const [formHpMax, setFormHpMax] = useState("");
     const [formInit, setFormInit] = useState("");
-    const [formNameOverride, setFormNameOverride] = useState(""); 
+    const [formNameOverride, setFormNameOverride] = useState("");
 
     const [isPanelOpen, setIsPanelOpen] = useState(false);
-    const panelAnim = useRef(new Animated.Value(0)).current; 
+    const panelAnim = useRef(new Animated.Value(0)).current;
 
     const translateY = panelAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: [260, 0], 
+        outputRange: [260, 0],
     });
 
     const togglePanel = () => {
@@ -62,7 +62,6 @@ export default function BattleDetailScreen() {
     };
 
     // Ajustar offset cuando se muestra/oculta el teclado.
-
     useEffect(() => {
         const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
             setKeyboardOffset(e.endCoordinates.height);
@@ -78,7 +77,6 @@ export default function BattleDetailScreen() {
     }, []);
 
     // Cargar datos de la batalla
-
     useEffect(() => {
         loadData();
     }, [numericId]);
@@ -130,7 +128,6 @@ export default function BattleDetailScreen() {
     };
 
     // Manejar cambios en los inputs y aplicar cambios de HP/Temp HP
-
     const handleAmountChange = (id, value) => {
         setAmountInputs((prev) => ({
             ...prev,
@@ -156,7 +153,6 @@ export default function BattleDetailScreen() {
                 // sumar puntos de golpe temporales
                 tempHp += amount;
             } else if (mode === "damage") {
-                
                 let remaining = amount; // daño primero contra temporales
 
                 if (tempHp > 0) {
@@ -215,16 +211,16 @@ export default function BattleDetailScreen() {
                 : src.name;
 
         const newCombatant = {
-            internalId, 
+            internalId,
             sourceId: src.id,
-            sourceType: fromType, 
+            sourceType: fromType,
             name: displayName,
             hpMax,
             hpCurrent: hpMax,
             tempHp: 0,
             ac: src.ac ?? 0,
             initiative,
-            notes: src.notes ?? null, 
+            notes: src.notes ?? null,
             isDead: false,
         };
 
@@ -241,7 +237,6 @@ export default function BattleDetailScreen() {
         await saveCombatants(updated);
     };
 
-
     if (loading || !battle) {
         return (
             <View style={styles.center}>
@@ -253,7 +248,7 @@ export default function BattleDetailScreen() {
 
     return (
         <View style={[styles.container, { paddingBottom: keyboardOffset }]}>
-            {/* Lista de los combatientes, pnatalla principal */}
+            {/* Lista de los combatientes, pantalla principal */}
             <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={{ paddingBottom: 190 }}
@@ -277,27 +272,38 @@ export default function BattleDetailScreen() {
                                 key={c.internalId}
                                 style={[
                                     styles.combatRow,
-                                    c.isDead && { opacity: 0.4, backgroundColor: "#111827" },
+                                    c.isDead && {
+                                        opacity: 0.4,
+                                        backgroundColor: "#111827",
+                                    },
                                 ]}
                             >
                                 <View style={styles.leftBlock}>
                                     <View style={styles.initiativeBadge}>
-                                        <Text style={styles.initiativeText}>{c.initiative}</Text>
+                                        <Text style={styles.initiativeText}>
+                                            {c.initiative}
+                                        </Text>
                                     </View>
+
                                     <View style={styles.mainText}>
-                                        <Text style={styles.combatName}>{c.name}</Text>
-                                        <Text style={styles.combatStats}>
-                                            <Text style={styles.acText}>AC {c.ac}</Text>
-                                            <Text style={styles.grayText}> · </Text>
-                                            <Text style={styles.hpText}>
+                                        {/* Nombre + HP grande en la misma línea */}
+                                        <Text style={styles.combatName}>
+                                            {c.name}
+                                            <Text style={styles.hpInlineText}>
+                                                {"  "}
                                                 {c.hpCurrent} / {c.hpMax} HP
                                             </Text>
                                             {c.tempHp > 0 && (
-                                                <Text style={styles.tempHpText}>
-                                                    {" "}
-                                                    (+{c.tempHp})
+                                                <Text style={styles.tempHpInlineText}>
+                                                    {"  "}
+                                                    +{c.tempHp}
                                                 </Text>
                                             )}
+                                        </Text>
+
+                                        {/* Segunda línea: solo AC */}
+                                        <Text style={styles.combatStats}>
+                                            <Text style={styles.acText}>AC {c.ac}</Text>
                                         </Text>
                                     </View>
                                 </View>
@@ -307,7 +313,9 @@ export default function BattleDetailScreen() {
                                     <View style={styles.rightBlock}>
                                         <Pressable
                                             style={[styles.hpButton, styles.damageButton]}
-                                            onPress={() => applyChange(c.internalId, "damage")}
+                                            onPress={() =>
+                                                applyChange(c.internalId, "damage")
+                                            }
                                         >
                                             <Text style={styles.hpButtonText}>-</Text>
                                         </Pressable>
@@ -325,14 +333,18 @@ export default function BattleDetailScreen() {
 
                                         <Pressable
                                             style={[styles.hpButton, styles.healButton]}
-                                            onPress={() => applyChange(c.internalId, "heal")}
+                                            onPress={() =>
+                                                applyChange(c.internalId, "heal")
+                                            }
                                         >
                                             <Text style={styles.hpButtonText}>+</Text>
                                         </Pressable>
 
                                         <Pressable
                                             style={[styles.hpButton, styles.tempButton]}
-                                            onPress={() => applyChange(c.internalId, "temp")}
+                                            onPress={() =>
+                                                applyChange(c.internalId, "temp")
+                                            }
                                         >
                                             <Text style={styles.hpButtonText}>🛡</Text>
                                         </Pressable>
@@ -374,7 +386,8 @@ export default function BattleDetailScreen() {
                             <Text
                                 style={[
                                     styles.fromChipText,
-                                    fromType === "character" && styles.fromChipTextActive,
+                                    fromType === "character" &&
+                                        styles.fromChipTextActive,
                                 ]}
                             >
                                 Personajes
@@ -399,7 +412,8 @@ export default function BattleDetailScreen() {
                             <Text
                                 style={[
                                     styles.fromChipText,
-                                    fromType === "creature" && styles.fromChipTextActive,
+                                    fromType === "creature" &&
+                                        styles.fromChipTextActive,
                                 ]}
                             >
                                 Criaturas
@@ -413,34 +427,37 @@ export default function BattleDetailScreen() {
                         showsHorizontalScrollIndicator={false}
                         style={styles.chipsScroll}
                     >
-                        {(fromType === "character" ? characters : creatures).map((item) => (
-                            <Pressable
-                                key={item.id}
-                                style={[
-                                    styles.nameChip,
-                                    selectedId === String(item.id) && styles.nameChipActive,
-                                ]}
-                                onPress={() => {
-                                    setSelectedId(String(item.id));
-                                    setFormHpMax(String(item.hp ?? ""));
-                                    if (fromType === "creature") {
-                                        setFormNameOverride(item.name || "");
-                                    } else {
-                                        setFormNameOverride("");
-                                    }
-                                }}
-                            >
-                                <Text
+                        {(fromType === "character" ? characters : creatures).map(
+                            (item) => (
+                                <Pressable
+                                    key={item.id}
                                     style={[
-                                        styles.nameChipText,
+                                        styles.nameChip,
                                         selectedId === String(item.id) &&
-                                        styles.nameChipTextActive,
+                                            styles.nameChipActive,
                                     ]}
+                                    onPress={() => {
+                                        setSelectedId(String(item.id));
+                                        setFormHpMax(String(item.hp ?? ""));
+                                        if (fromType === "creature") {
+                                            setFormNameOverride(item.name || "");
+                                        } else {
+                                            setFormNameOverride("");
+                                        }
+                                    }}
                                 >
-                                    {item.name}
-                                </Text>
-                            </Pressable>
-                        ))}
+                                    <Text
+                                        style={[
+                                            styles.nameChipText,
+                                            selectedId === String(item.id) &&
+                                                styles.nameChipTextActive,
+                                        ]}
+                                    >
+                                        {item.name}
+                                    </Text>
+                                </Pressable>
+                            )
+                        )}
                     </ScrollView>
 
                     {/* Nombre de criatura en la batalla, para cuando haya mas de uno del mismo tipo. */}
@@ -465,7 +482,9 @@ export default function BattleDetailScreen() {
                             <TextInput
                                 style={styles.input}
                                 value={formHpMax}
-                                onChangeText={(t) => setFormHpMax(t.replace(/[^0-9]/g, ""))}
+                                onChangeText={(t) =>
+                                    setFormHpMax(t.replace(/[^0-9]/g, ""))
+                                }
                                 keyboardType="numeric"
                             />
                         </View>
@@ -475,7 +494,9 @@ export default function BattleDetailScreen() {
                             <TextInput
                                 style={styles.input}
                                 value={formInit}
-                                onChangeText={(t) => setFormInit(t.replace(/[^0-9]/g, ""))}
+                                onChangeText={(t) =>
+                                    setFormInit(t.replace(/[^0-9]/g, ""))
+                                }
                                 keyboardType="numeric"
                             />
                         </View>
@@ -486,7 +507,9 @@ export default function BattleDetailScreen() {
                         onPress={handleAddCombatant}
                         disabled={saving}
                     >
-                        <Text style={styles.addButtonText}>+ Añadir a la batalla</Text>
+                        <Text style={styles.addButtonText}>
+                            + Añadir a la batalla
+                        </Text>
                     </Pressable>
                 </Animated.View>
 
@@ -501,7 +524,6 @@ export default function BattleDetailScreen() {
         </View>
     );
 }
-
 
 const styles = StyleSheet.create({
     container: {
@@ -578,11 +600,24 @@ const styles = StyleSheet.create({
     mainText: {
         flex: 1,
     },
+
     combatName: {
         color: "white",
         fontSize: 15,
         fontWeight: "500",
     },
+    
+    hpInlineText: {
+        color: "#22c55e",
+        fontSize: 18,
+        fontWeight: "bold",
+    },
+    tempHpInlineText: {
+        color: "#0ea5e9",
+        fontSize: 16,
+        fontWeight: "bold",
+    },
+
     combatStats: {
         marginTop: 2,
         fontSize: 12,
@@ -592,12 +627,6 @@ const styles = StyleSheet.create({
     },
     grayText: {
         color: "#6b7280",
-    },
-    hpText: {
-        color: "#22c55e", // verde
-    },
-    tempHpText: {
-        color: "#14b8a6", // turquesa
     },
 
     rightBlock: {
@@ -640,12 +669,10 @@ const styles = StyleSheet.create({
         textAlign: "center",
     },
 
-    // FOOTER
     footer: {
         position: "absolute",
         left: 0,
         right: 0,
-        // bottom lo controlamos en línea con keyboardOffset
     },
     addPanel: {
         backgroundColor: "#020617",

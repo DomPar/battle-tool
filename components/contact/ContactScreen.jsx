@@ -6,7 +6,7 @@ import {
     View,
 } from "react-native";
 
-const GITHUB_URL = "https://github.com/DomPar/battle-tool"; 
+const GITHUB_URL = "https://github.com/DomPar/battle-tool";
 const EIFFEL_MAP_URL = "https://www.google.com/maps?q=48.8584,2.2945";
 
 export default function ContactScreenWeb() {

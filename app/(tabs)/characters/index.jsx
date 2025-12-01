@@ -6,12 +6,13 @@ import {
     Alert,
     Image,
     Keyboard,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
-    View,
+    View
 } from "react-native";
 import {
     createCharacter,
@@ -20,7 +21,6 @@ import {
     updateCharacter,
 } from "../../../services/apiService";
 
-// Mapa de imágenes locales (avatar por personaje)
 const STORAGE_KEY = "characterImages";
 const avatarPlaceholder = require("../../../assets/images/avatarph.png");
 
@@ -123,6 +123,27 @@ export default function CharactersScreen() {
     };
 
     const handleDelete = async (id) => {
+        if (Platform.OS === "web") {
+            const confirmed = window.confirm("¿Seguro que quieres eliminar este personaje?");
+            if (!confirmed) return;
+
+            try {
+                await deleteCharacter(id);
+
+                const newMap = { ...imageMap };
+                delete newMap[id];
+                setImageMap(newMap);
+                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newMap));
+
+                if (editingId === id) resetForm();
+                await loadCharacters();
+            } catch (error) {
+                console.log("Error eliminando personaje:", error);
+                window.alert("No se pudo eliminar el personaje.");
+            }
+            return;
+        }
+
         Alert.alert("Eliminar", "¿Seguro que quieres eliminar este personaje?", [
             { text: "Cancelar", style: "cancel" },
             {
@@ -154,8 +175,32 @@ export default function CharactersScreen() {
 
     const pickImageForCharacter = async (id) => {
         try {
+
+            if (Platform.OS === "web") {
+                return new Promise((resolve) => {
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = "image/*";
+
+                    input.onchange = async () => {
+                        const file = input.files[0];
+                        if (!file) return resolve(null);
+
+                        const uri = URL.createObjectURL(file);
+
+                        const newMap = { ...imageMap, [id]: uri };
+                        setImageMap(newMap);
+                        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newMap));
+
+                        resolve(uri);
+                    };
+
+                    input.click();
+                });
+            }
+
             const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-            
+
             Alert.alert(
                 "Seleccionar imagen",
                 "¿De dónde quieres obtener la imagen?",

@@ -3,6 +3,7 @@ import {
     ActivityIndicator,
     Alert,
     Keyboard,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -109,6 +110,21 @@ export default function BestiaryScreen() {
     };
 
     const handleDelete = async (id) => {
+
+        if (Platform.OS === "web") {
+        const confirmed = confirm("¿Seguro que quieres eliminar esta criatura?");
+        if (!confirmed) return;
+
+        try {
+            await deleteCreature(id);
+            if (editingId === id) resetForm();
+            await loadCreatures();
+        } catch (error) {
+            console.log("Error eliminando criatura:", error);
+            alert("No se pudo eliminar la criatura.");
+        }
+        return;
+    }
         Alert.alert("Eliminar", "¿Seguro que quieres eliminar esta criatura?", [
             { text: "Cancelar", style: "cancel" },
             {

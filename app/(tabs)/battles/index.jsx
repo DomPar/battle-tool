@@ -4,6 +4,7 @@ import {
     ActivityIndicator,
     Alert,
     Keyboard,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -102,6 +103,20 @@ export default function BattlesScreen() {
     };
 
     const handleDelete = async (id) => {
+        if (Platform.OS === "web") {
+            const confirmed = window.confirm("¿Seguro que quieres eliminar esta batalla?");
+            if (!confirmed) return;
+
+            try {
+                await deleteBattle(id);
+                if (editingId === id) resetForm();
+                await loadBattles();
+            } catch (error) {
+                console.log("Error eliminando batalla:", error);
+                window.alert("No se pudo eliminar la batalla.");
+            }
+            return;
+        }
         Alert.alert("Eliminar", "¿Seguro que quieres eliminar esta batalla?", [
             { text: "Cancelar", style: "cancel" },
             {
