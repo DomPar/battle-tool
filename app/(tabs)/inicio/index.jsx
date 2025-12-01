@@ -10,7 +10,6 @@ export default function InicioScreen() {
 
             <View style={styles.buttonsWrapper}>
 
-                {/* Botón Batallas */}
                 <Pressable
                     style={styles.button}
                     onPress={() => router.push("/battles")}
@@ -19,7 +18,6 @@ export default function InicioScreen() {
                     <Text style={styles.buttonLabel}>Batallas</Text>
                 </Pressable>
 
-                {/* Botón Personajes */}
                 <Pressable
                     style={styles.button}
                     onPress={() => router.push("/characters")}
@@ -28,7 +26,6 @@ export default function InicioScreen() {
                     <Text style={styles.buttonLabel}>Personajes</Text>
                 </Pressable>
 
-                {/* Botón Criaturas */}
                 <Pressable
                     style={styles.button}
                     onPress={() => router.push("/bestiary")}
@@ -45,7 +42,7 @@ export default function InicioScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#020617", // azul noche
+        backgroundColor: "#020617",
         alignItems: "center",
         justifyContent: "center",
         paddingHorizontal: 24,

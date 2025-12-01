@@ -32,20 +32,16 @@ export default function BattleDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
-    // altura del teclado para mover todo cuando se ve el teclado para el input
     const [keyboardOffset, setKeyboardOffset] = useState(0);
 
-    // inputs por combatiente (cantidad a sumar/restar)
     const [amountInputs, setAmountInputs] = useState({});
 
-    // formulario para añadir combatiente
     const [fromType, setFromType] = useState("character");
     const [selectedId, setSelectedId] = useState("");
     const [formHpMax, setFormHpMax] = useState("");
     const [formInit, setFormInit] = useState("");
     const [formNameOverride, setFormNameOverride] = useState(""); 
 
-    // panel deslizante
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const panelAnim = useRef(new Animated.Value(0)).current; 
 

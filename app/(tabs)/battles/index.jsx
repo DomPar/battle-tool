@@ -173,7 +173,7 @@ export default function BattlesScreen() {
                     </ScrollView>
                 )}
 
-                {/* Formulario para crear/editar batalla */}
+                {/* Formulario para crear o editar batalla */}
                 <View style={styles.form}>
                     <Text style={styles.formTitle}>
                         {editingId ? "Editar batalla" : "Crear nueva batalla"}

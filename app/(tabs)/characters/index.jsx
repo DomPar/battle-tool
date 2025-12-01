@@ -154,7 +154,6 @@ export default function CharactersScreen() {
 
     const pickImageForCharacter = async (id) => {
         try {
-            // Pedir permisos de cámara
             const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
             
             Alert.alert(
